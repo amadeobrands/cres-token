@@ -1,0 +1,217 @@
+#--------------------------------------------------
+#----- CrescoFin token deployment transcript ------
+#--------------------------------------------------
+
+
+# STEP 1: create core (execution from /token)
+# -------------------------------------------
+await TokenCore.new.estimateGas('Cresco Core', [accounts[0]] )
+core = await TokenCore.new('Cresco Core', [accounts[0]] , {gas: 4500000, gasPrice: web3.utils.toWei('20','gwei')})
+core_addr = core.address
+
+
+# STEP 2: create delegate (execution from /token)
+# -----------------------------------------------
+await KYCOnlyTokenDelegate.new.estimateGas()
+delegate = await KYCOnlyTokenDelegate.new({gas: 2900000, gasPrice: web3.utils.toWei('28','gwei')})
+delegate_addr = delegate.address
+
+const NULL_ADDRESS = '0x'.padEnd(42, '0')
+const AUDIT_TRIGGER_MODE_BOTH = 4;
+await core.defineTokenDelegate.estimateGas(3, delegate.address, [1])
+await core.defineTokenDelegate(3, delegate.address, [1], {gas: 200000, gasPrice: web3.utils.toWei('24','gwei')})
+await core.defineAuditConfiguration.estimateGas(1, 0, AUDIT_TRIGGER_MODE_BOTH, [], [], NULL_ADDRESS, NULL_ADDRESS);
+await core.defineAuditConfiguration(1, 0, AUDIT_TRIGGER_MODE_BOTH, [], [], NULL_ADDRESS, NULL_ADDRESS, {gas: 200000, gasPrice: web3.utils.toWei('24','gwei')});
+
+
+# STEP 3: create token (execution from /token)
+# --------------------------------------------
+await TokenProxy.new.estimateGas(core.address)
+token = await TokenProxy.new(core.address, {gas: 900000, gasPrice: web3.utils.toWei('21','gwei')})
+token_addr = token.address
+await core.defineToken.estimateGas(token.address, 3, "Cresco Equity Token", "CRES", "0")
+await core.defineToken(token.address, 3, "Cresco Equity Token", "CRES", "0", {gas: 200000, gasPrice: web3.utils.toWei('24','gwei')})
+
+
+# STEP 4: create vaults (execution from /distribution)
+# ----------------------------------------------------
+# Nov 12th 2021
+unlock_time1 = 1636675200
+# Nov 12th 2022
+unlock_time2 = 1668211200
+await TimeLockedSimpleVaultERC20.new.estimateGas(unlock_time1);
+
+vault1_founder1 = await TimeLockedSimpleVaultERC20.new(unlock_time1, { gas: 440000, gasPrice: web3.utils.toWei('92','gwei')})
+vault1_founder1_addr = vault1_founder1.address
+
+vault2_founder1 = await TimeLockedSimpleVaultERC20.new(unlock_time2, { gas: 440000, gasPrice: web3.utils.toWei('95','gwei')})
+vault2_founder1_addr = vault2_founder1.address
+
+vault1_founder2 = await TimeLockedSimpleVaultERC20.new(unlock_time1, { gas: 440000, gasPrice: web3.utils.toWei('95','gwei')})
+vault1_founder2_addr = vault1_founder2.address 
+
+vault2_founder2 = await TimeLockedSimpleVaultERC20.new(unlock_time2, { gas: 440000, gasPrice: web3.utils.toWei('100','gwei')})
+vault2_founder2_addr = vault2_founder2.address
+
+await vault1_founder1.transferOwnership.estimateGas(founder1_addr)
+await vault1_founder1.transferOwnership(founder1_addr, { gas: 200000,gasPrice: web3.utils.toWei('105','gwei')})
+await vault2_founder1.transferOwnership(founder1_addr, { gas: 200000,gasPrice: web3.utils.toWei('105','gwei')})
+await vault1_founder2.transferOwnership(founder2_addr, { gas: 200000,gasPrice: web3.utils.toWei('105','gwei')})
+await vault2_founder2.transferOwnership(founder2_addr, { gas: 200000,gasPrice: web3.utils.toWei('105','gwei')})
+
+
+# STEP 5: mint tokens (execution from /token)
+# -------------------------------------------
+token_holders = [founder1_addr, founder2_addr, stani_addr, cyril_addr, realv_addr, daidai_addr, guillaume_addr, tatsiana_addr, slavian_addr, galina_addr, maewenn_addr, simon_addr, vault1_founder1_addr, vault2_founder1_addr, vault1_founder2_addr, vault2_founder2_addr, safe_addr]
+quantities = ['1857500','1857500', '120000', '50000', '100000', '100000', '750000', '75000', '120000', '25000', '25000', '50000', '937500', '937500', '937500', '937500', '3120000']
+
+await core.mint.estimateGas(token_addr, token_holders, quantities)
+await core.mint(token_addr, token_holders, quantities, {gas: 700000, gasPrice: web3.utils.toWei('100','gwei')})
+await core.finishMinting.estimateGas(token_addr)
+await core.finishMinting(token_addr, {gas: 200000, gasPrice: web3.utils.toWei('120','gwei')})
+
+
+# STEP 6: create wrapped token (execution from /distribution)
+# -----------------------------------------------------------
+await WrappedERC20.new.estimateGas('Wrapped CRES', 'wCRES', 18, token_addr)
+wtoken = await WrappedERC20.new('Wrapped CRES', 'wCRES', 18, token_addr, {gas: 1400000, gasPrice: web3.utils.toWei('100','gwei')})
+wtoken_addr = wtoken.address
+
+
+# STEP 7: create voting contract (execution from /governance)
+# -----------------------------------------------------------
+await VotingSessionDelegate.new.estimateGas()
+votingDelegate = await VotingSessionDelegate.new({ gas: 4500000, gasPrice: web3.utils.toWei('100','gwei')})
+voting_delegate_addr = votingDelegate.address
+await VotingSessionManager.new.estimateGas(token_addr, votingDelegate.address)
+session = await VotingSessionManager.new(token_addr, votingDelegate.address, {gas: 3000000, gasPrice: web3.utils.toWei('100','gwei')})
+session_addr = session.address
+
+await core.defineProxy.estimateGas(session.address, 3);
+await core.defineProxy(session.address, 3, {gas: 200000, gasPrice: web3.utils.toWei('100','gwei')});
+await core.defineTokenLocks.estimateGas(token_addr, [token_addr,session.address])
+await core.defineTokenLocks(token_addr, [token_addr,session.address], {gas: 200000, gasPrice: web3.utils.toWei('100','gwei')})
+
+
+# STEP 8: update voting session rule
+# ----------------------------------
+await session.updateSessionRule.estimateGas(3600*24*13, 3600*24*1, 3600*24*7, 3600*24*14, 3600*24*4, 10, 20, 25, 10, [safe_addr, wtoken_addr, vault1_founder1_addr, vault2_founder1_addr, vault1_founder2_addr, vault2_founder2_addr])
+await session.updateSessionRule(3600*24*13, 3600*24*1, 3600*24*7, 3600*24*14, 3600*24*4, 10, 20, 25, 10, [safe_addr, wtoken_addr, vault1_founder1_addr, vault2_founder1_addr, vault1_founder2_addr, vault2_founder2_addr], {gas: 400000, gasPrice: web3.utils.toWei('100','gwei')})
+
+
+# STEP 9: grant permissions to voting contract & quaestor
+# -------------------------------------------------------
+defineLock_signature = core.abi.filter(x => x.name == 'defineLock')[0].signature
+defineOracle_signature = core.abi.filter(x => x.name == 'defineOracle')[0].signature
+updateSessionRule_signature = session.abi.filter(x => x.name == 'updateSessionRule')[0].signature
+updateResolutionRequirements_signature = session.abi.filter(x => x.name == 'updateResolutionRequirements')[0].signature
+defineProposal_signature = session.abi.filter(x => x.name == 'defineProposal')[0].signature
+executeResolutions_signature = session.abi.filter(x => x.name == 'executeResolutions')[0].signature
+
+const VOTING_ROLE = web3.utils.fromAscii('VotingSessionRole').padEnd(66, '0')
+await core.defineRole.estimateGas(VOTING_ROLE, [defineLock_signature, defineOracle_signature, updateSessionRule_signature, updateResolutionRequirements_signature])
+await core.defineRole(VOTING_ROLE, [defineLock_signature, defineOracle_signature, updateSessionRule_signature, updateResolutionRequirements_signature], {gas: 200000, gasPrice: web3.utils.toWei('25','gwei')})
+await core.assignOperators.estimateGas(VOTING_ROLE, [session.address])
+await core.assignOperators(VOTING_ROLE, [session.address], {gas: 200000, gasPrice: web3.utils.toWei('25','gwei')})
+await core.assignProxyOperators.estimateGas(session.address, VOTING_ROLE, [session.address])
+await core.assignProxyOperators(session.address, VOTING_ROLE, [session.address], {gas: 200000, gasPrice: web3.utils.toWei('25','gwei')})
+
+const QUAESTOR_ROLE = web3.utils.fromAscii('QuaestorRole').padEnd(66, '0')
+await core.defineRole.estimateGas(QUAESTOR_ROLE, [defineProposal_signature, executeResolutions_signature])
+await core.defineRole(QUAESTOR_ROLE, [defineProposal_signature, executeResolutions_signature], {gas: 200000, gasPrice: web3.utils.toWei('25','gwei')})
+await core.assignProxyOperators.estimateGas(session.address, QUAESTOR_ROLE, [quaestor_addr])
+await core.assignProxyOperators(session.address, QUAESTOR_ROLE, [quaestor_addr], {gas: 200000, gasPrice: web3.utils.toWei('25','gwei')})
+
+
+# Step 10: Allow token wrapping at any period of voting sessions
+# --------------------------------------------------------------
+const END_OF_TIME = '0x'.padEnd(18, '1');
+const ANY_ADDRESSES = web3.utils.toChecksumAddress('0x' + web3.utils.fromAscii('AnyAddresses').substr(2).padStart(40, '0'));
+await core.defineLock.estimateGas(session.address, ANY_ADDRESSES, wtoken_addr, END_OF_TIME, END_OF_TIME)
+await core.defineLock(session.address, ANY_ADDRESSES, wtoken_addr, END_OF_TIME, END_OF_TIME, {gas: 200000, gasPrice: web3.utils.toWei('25','gwei')})
+
+
+# STEP 11: define voting session requirements
+# -------------------------------------------
+const ANY_METHODS = web3.utils.fromAscii('AnyMethods').padEnd(10, '0')
+await session.updateResolutionRequirements.estimateGas( [core.address, session.address], [ANY_METHODS, ANY_METHODS], ['800000', '800000'], ['600000', '600000'], ['10', '10'])
+await session.updateResolutionRequirements( [core.address, session.address], [ANY_METHODS, ANY_METHODS], ['800000', '800000'], ['600000', '600000'], ['10', '10'], {gas: 200000, gasPrice: web3.utils.toWei('25','gwei')})
+
+# STEP 12: create user registry (execution from /oracle)
+# ------------------------------------------------------
+INITIAL_WHITELIST = [founder1_addr, founder2_addr, stani_addr, cyril_addr, realv_addr, daidai_addr, guillaume_addr, tatsiana_addr, slavian_addr, galina_addr, maewenn_addr, simon_addr, vault1_founder1_addr, vault2_founder1_addr, vault1_founder2_addr, vault2_founder2_addr, safe_addr, wtoken_addr]
+const CHF = web3.utils.toHex('CHF')
+validity_date = Math.floor(new Date('2100-01-01').getTime()/1000)
+await UserRegistry.new.estimateGas('CrescoFin User Registry', CHF, INITIAL_WHITELIST, validity_date)
+registry = await UserRegistry.new('CrescoFin User Registry', CHF, INITIAL_WHITELIST, validity_date, {gas: 4000000, gasPrice: web3.utils.toWei('25','gwei')})
+registry_addr = registry.address
+
+registry.attachManyAddressesExternal.estimateGas([7], [operator_addr])
+await registry.attachManyAddressesExternal([7], [operator_addr], {gas: 200000, gasPrice: web3.utils.toWei('25','gwei')})
+
+await registry.defineOperator.estimateGas('Registry Operator', registry_operator_addr)
+await registry.defineOperator('Registry Operator', registry_operator_addr, {gas: 200000, gasPrice: web3.utils.toWei('27','gwei')})
+
+await registry.transferOwnership.estimateGas(registry_owner_addr)
+await registry.transferOwnership(registry_owner_addr, {gas: 200000, gasPrice: web3.utils.toWei('27','gwei')})
+
+# contract from /governance
+const NULL_ADDRESS = '0x'.padEnd(42, '0')
+const CHF = web3.utils.toHex('CHF')
+await core.defineOracle.estimateGas(registry_addr, NULL_ADDRESS, CHF.padEnd(42,'0'))
+await core.defineOracle(registry_addr, NULL_ADDRESS, CHF.padEnd(42,'0'), {gas: 200000, gasPrice: web3.utils.toWei('25','gwei')})
+
+
+# STEP 13: revoke operator rights (execution from /token)
+# -------------------------------------------------------
+ALL_PROXIES = web3.utils.toChecksumAddress('0x' + web3.utils.fromAscii('AllProxies').substr(2).padStart(40, '0'))
+await core.revokeProxyOperators.estimateGas(ALL_PROXIES, [accounts[0]])
+await core.revokeProxyOperators(ALL_PROXIES, [accounts[0]], {gas: 200000, gasPrice: web3.utils.toWei('1','gwei')})
+
+await core.revokeOperators.estimateGas([accounts[0]])
+await core.revokeOperators([accounts[0]], {gas: 200000, gasPrice: web3.utils.toWei('1','gwei')})
+
+await core.transferOwnership.estimateGas(session_addr)
+await core.transferOwnership(session_addr, {gas: 200000, gasPrice: web3.utils.toWei('1','gwei')})
+
+
+
+# CrescoFin Addresses:
+# --------------------
+safe_addr = '0x50D4EB593Cf964ee1bE9b82795E98229C1e532CC'
+founder1_addr = '0xDd6Cd8C588951b4DEC79D1CE35Ac0c2CfD06F70C'
+founder2_addr = '0x4cfB9353A2aDf2D3734180B57eA7e17632130486'
+stani_addr = '0x505f1c7dfA1A9fc8b0F305744EeF104EfDb32bfc'
+cyril_addr = '0x96f6596908948afAdA1e1A67eC72A6c96f2C19a4'
+realv_addr = '0x6d54F11F4953eC474184f80fe3a49E3ACa4f40dD'
+daidai_addr = '0x0ffbAF6017f8F7C8B99BA82a6AFfC8514790b3B1'
+guillaume_addr = '0x035D421fDE0588412e737d1C3d5CA2178425D703'
+tatsiana_addr = '0x0CCc5d12B307469f6B790dF2789Ae6cC17957B90'
+slavian_addr = '0xA006aF8793511dE6Df10da8e98B0f06d09b5C00D'
+galina_addr = '0xb8dD01Be527d017564f66678325D086a48DfA52B'
+maewenn_addr = '0xA651241C17213384333EcBfC69D6f95f81fCd330'
+simon_addr = '0x928e458Bf311E3630b44Dd0a2298d1655Ce3231C'
+operator_addr = '0x942f023715860d411C5c93Da1bFb00b40576ae11'
+registry_owner_addr = '0x297dACA93a4E6a5Be8E1D9322747e4CE075257Ff'
+registry_operator_addr = '0xE9b8B15A5992e252f1f9825b357f30CFf190dfbC'
+quaestor_addr = '0xa7bEFD50f0acf8dDE32DC3Ed7484b69516dCf1de'
+safe_trustee1_addr = '0x99e4a3c05F0f2748F2DC4192dfDA34cab5c6011f'
+safe_trustee2_addr = '0x51B237adb00FC8EFA01FaECC174Da879746d0DA2'
+safe_trustee3_addr = '0x7034cD48981a38CEFF0e403Fcd3c636eA3C23ce1'
+
+
+# Deployed Contract Addresses:
+# ----------------------------
+core_addr = '0x5b78fc1826A7483C54265315BB326FF748Be9C58'
+delegate_addr = '0x601Ef8c970c10669d1F854d1820198dA162f7295'
+token_addr = '0x81Df9EFB1E970517fF5B32C2F485f791f3410164'
+vault1_founder1_addr = '0xa76206464a456c6372418BDDf02f5c530830C19d'
+vault2_founder1_addr = '0x022690e24cf89193770017a9516dae76d162c059'
+vault1_founder2_addr = '0xC8873Bc1a426716987b811CB7Cc94ab120Fb4FbE'
+vault2_founder2_addr = '0xA493c1719629791d465363df5d621A63db567F93'
+wtoken_addr = '0xa0afAA285Ce85974c3C881256cB7F225e3A1178a'
+voting_delegate_addr = '0xc0685B5e184276E5aAC8A652311627BBfeFd0CDA'
+session_addr = '0x9fc4e56d4b345f18FfD4866084E8A5097dE5B5c8'
+registry_addr = '0xc0Ae278d50a2CFfE6abdFB22FF062539e295aeBc'
+
+
